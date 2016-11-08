@@ -29,12 +29,13 @@ class SimpleMonitor13(simple_switch_13.SimpleSwitch13):
         super(SimpleMonitor13, self).__init__(*args, **kwargs)
         self.datapaths = {}
         self.monitor_thread = hub.spawn(self._monitor)
-        self.database = defaultdict(list)
+        self.database = defaultdict(dict)
 
     @set_ev_cls(ofp_event.EventOFPStateChange,
                 [MAIN_DISPATCHER, DEAD_DISPATCHER])
     def _state_change_handler(self, ev):
         datapath = ev.datapath
+	print "\n ********* datapath",dir(datapath), "*****&&&&&&&",datapath.address
         if ev.state == MAIN_DISPATCHER:
             if datapath.id not in self.datapaths:
                 self.logger.debug('register datapath: %016x', datapath.id)
@@ -64,7 +65,7 @@ class SimpleMonitor13(simple_switch_13.SimpleSwitch13):
     @set_ev_cls(ofp_event.EventOFPFlowStatsReply, MAIN_DISPATCHER)
     def _flow_stats_reply_handler(self, ev):
         body = ev.msg.body
-
+        print "\n\n\n ****** flow statmsg",ev.msg.body 
         self.logger.info('datapath         '
                          'in-port  eth-dst           '
                          'out-port packets  bytes')
@@ -83,7 +84,8 @@ class SimpleMonitor13(simple_switch_13.SimpleSwitch13):
     @set_ev_cls(ofp_event.EventOFPPortStatsReply, MAIN_DISPATCHER)
     def _port_stats_reply_handler(self, ev):
         body = ev.msg.body
-
+        print "\n ******ev.msg", ev.msg
+ 	print "\n datapath.id",ev.msg.datapath.id 
         self.logger.info('datapath         port     '
                          'rx-pkts  rx-bytes rx-error '
                          'tx-pkts  tx-bytes tx-error')
@@ -95,6 +97,6 @@ class SimpleMonitor13(simple_switch_13.SimpleSwitch13):
                              ev.msg.datapath.id, stat.port_no,
                              stat.rx_packets, stat.rx_bytes, stat.rx_errors,
                              stat.tx_packets, stat.tx_bytes, stat.tx_errors)
-            self.database[ev.msg.datapath.id].append({stat.port_no:0})
+            self.database["%016x"%ev.msg.datapath.id][stat.port_no]= 0
 	print "\n*************** DATABASE *************",self.database
 	print "dumping yaml", yaml.dump(self.database)
