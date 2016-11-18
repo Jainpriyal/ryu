@@ -42,7 +42,7 @@ class DiscoverTopology(app_manager.RyuApp):
     def __init__(self, *args, **kwargs):
         super(DiscoverTopology, self).__init__(*args, **kwargs)
         self.topology_api_app = self
-        self.name = "topology"
+        self.name = "topologydiscovery"
         self.switch_link_table = {}   #{(src.dpid, dst.dpid):(src.port_no, dst.port_no)} 
         self.switch_host_access_table = {} # {(sw,port) :[host1_ip]}
         self.switch_port_table = {}  # {sw:set(all available ports)}
@@ -181,12 +181,6 @@ class DiscoverTopology(app_manager.RyuApp):
             self.switch_host_ports[sw] = all_port - interior_port
     
     # List the event list should be listened.
-    """
-    events = [event.EventSwitchEnter,
-              event.EventSwitchLeave, event.EventPortAdd,
-              event.EventPortDelete, event.EventPortModify,
-              event.EventLinkAdd, event.EventLinkDelete]
-    """
     @set_ev_cls([event.EventSwitchEnter,
               event.EventSwitchLeave, event.EventPortAdd,
               event.EventPortDelete, event.EventPortModify,

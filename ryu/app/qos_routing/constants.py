@@ -1,3 +1,4 @@
 # Discover the topology every 5sec
+LATENCY_CALCULATION_PERIOD = 0.5
 DISPLAY = True
 TOPOLOGY_DISCOVERY_TIME = 10  
