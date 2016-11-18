@@ -46,7 +46,7 @@ from ryu.lib.packet import packet_base
 
 
 # LLDP destination MAC address
-LLDP_MAC_NEAREST_BRIDGE = '01:80:c2:00:00:0e'
+LLDP_MAC_NEAREST_BRIDGE = 'ff:ff:ff:ff:ff:ff'
 LLDP_MAC_NEAREST_NON_TPMR_BRIDGE = '01:80:c2:00:00:03'
 LLDP_MAC_NEAREST_CUSTOMER_BRIDGE = '01:80:c2:00:00:00'
 

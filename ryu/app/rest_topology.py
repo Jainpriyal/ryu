@@ -106,6 +106,7 @@ class TopologyController(ControllerBase):
             dpid = dpid_lib.str_to_dpid(kwargs['dpid'])
         links = get_link(self.topology_api_app, dpid)
         body = json.dumps([link.to_dict() for link in links])
+	print body
         return Response(content_type='application/json', body=body)
 
     def _hosts(self, req, **kwargs):

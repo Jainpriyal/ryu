@@ -22,6 +22,36 @@ from ryu import cfg
 CONF = cfg.CONF
 
 CONF.register_cli_opts([
+    # app/quantum_adapter
+    cfg.StrOpt('neutron-url', default='http://localhost:9696',
+               help='URL for connecting to neutron',
+               deprecated_name='quantum-url'),
+    cfg.IntOpt('neutron-url-timeout', default=30,
+               help='timeout value for connecting to neutron in seconds',
+               deprecated_name='quantum-url-timeout'),
+    cfg.StrOpt('neutron-admin-username', default='neutron',
+               help='username for connecting to neutron in admin context',
+               deprecated_name='quantum-admin-username'),
+    cfg.StrOpt('neutron-admin-password', default='service_password',
+               help='password for connecting to neutron in admin context',
+               deprecated_name='quantum-admin-password'),
+    cfg.StrOpt('neutron-admin-tenant-name', default='service',
+               help='tenant name for connecting to neutron in admin context',
+               deprecated_name='quantum-admin-tenant-name'),
+    cfg.StrOpt('neutron-admin-auth-url', default='http://localhost:5000/v2.0',
+               help='auth url for connecting to neutron in admin context',
+               deprecated_name='quantum-admin-auth-url'),
+    cfg.StrOpt('neutron-auth-strategy', default='keystone',
+               help='auth strategy for connecting to neutron in admin'
+               'context',
+               deprecated_name='quantum-auth-strategy'),
+    cfg.StrOpt('neutron-controller-addr', default=None,
+               help='openflow method:address:port to set controller of'
+               'ovs bridge',
+               deprecated_name='quantum-controller-addr')
+])
+
+CONF.register_cli_opts([
     # tests/switch/tester
     cfg.StrOpt('target', default='0000000000000001', help='target sw dp-id'),
     cfg.StrOpt('tester', default='0000000000000002', help='tester sw dp-id'),
@@ -46,29 +76,16 @@ CONF.register_cli_opts([
     cfg.StrOpt('dir', default='ryu/tests/switch/of13',
                help='test files directory'),
     cfg.StrOpt('target-version', default='openflow13',
-               help='target sw OFP version '
-               '[openflow10|openflow13|openflow14] '
+               help='target sw OFP version [openflow13|openflow14] '
                '(default: openflow13)'),
     cfg.StrOpt('tester-version', default='openflow13',
-               help='tester sw OFP version '
-               '[openflow10|openflow13|openflow14] '
-               '(default: openflow13)'),
-    cfg.IntOpt('interval', default=0,
-               help='interval time in seconds of each test '
-               '(default: 0)'),
+               help='tester sw OFP version [openflow13|openflow14] '
+               '(default: openflow13)')
 ], group='test-switch')
 
 
-DEFAULT_RPC_PORT = 50002
-DEFAULT_RPC_HOST = '0.0.0.0'
-
-CONF = cfg.CONF
 CONF.register_cli_opts([
-    cfg.IntOpt('rpc-port', default=DEFAULT_RPC_PORT,
-               help='Port for RPC server (default: %s)' % DEFAULT_RPC_PORT),
-    cfg.StrOpt('rpc-host', default=DEFAULT_RPC_HOST,
-               help='IP for RPC server (default: %s)' % DEFAULT_RPC_HOST),
-    cfg.StrOpt('config-file', default=None,
-               help='The config file formatted in Python source file. '
-                    'Please refer to "bgp_sample_conf.py" for details.')
-], group='bgp-app')
+    # k_shortest_forwarding
+    cfg.IntOpt('k-paths', default=1, help='number for k shortest paths'),
+    cfg.StrOpt('weight', default='hop',
+               help='weight type of computing shortest path.')])
