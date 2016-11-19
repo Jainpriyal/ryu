@@ -125,7 +125,7 @@ class LatencyCalculator(app_manager.RyuApp):
             return
 
     def display_latency(self):
-        if constants.DISPLAY and self.nwtopology is not None and self.nwtopology.database.number_of_nodes()>0:
+        if constants.SHOWLATENCY and self.nwtopology is not None and self.nwtopology.database.number_of_nodes()>0:
 	    self.logger.info("\nsrc-dpid    dst-dpid               latency")
             self.logger.info("-----------------------------------------------")
             for src in self.nwtopology.database:

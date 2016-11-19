@@ -242,7 +242,7 @@ class DiscoverTopology(app_manager.RyuApp):
 	"""
 
         switch_num = len(self.database.nodes())
-        if set(self.pre_database) != set(self.database) and constants.DISPLAY:
+        if set(self.pre_database) != set(self.database) and constants.SHOWTOPOLOGY:
             print "--------------------- Switch Adjacency Matrix ---------------------"
             print '%10s' % ("switch"),
             for i in self.database.nodes():
@@ -255,7 +255,7 @@ class DiscoverTopology(app_manager.RyuApp):
                 print ""
             self.pre_database = copy.deepcopy(self.database)
 
-        if self.pre_switch_link_table != self.switch_link_table and constants.DISPLAY:
+        if self.pre_switch_link_table != self.switch_link_table and constants.SHOWTOPOLOGY:
             print "--------------------- Switch Link Matrix ---------------------"
             print '%10s' % ("switch"),
             for i in self.database.nodes():
@@ -271,7 +271,7 @@ class DiscoverTopology(app_manager.RyuApp):
                 print ""
             self.pre_switch_link_table = copy.deepcopy(self.switch_link_table)
 
-        if self.pre_switch_host_access_table != self.switch_host_access_table and constants.DISPLAY:
+        if self.pre_switch_host_access_table != self.switch_host_access_table and constants.SHOWTOPOLOGY:
             print "----------------Access Host-------------------"
             print '%10s' % ("switch"), '%12s' % "Host"
             if not self.switch_host_access_table.keys():
