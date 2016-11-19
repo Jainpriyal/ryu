@@ -1,10 +1,8 @@
-"""
-Calculate latency of all links
+#################### Latency Calculator #######################
+# sends echo request within every 0.05sec
 
 
-"""
-
-
+###############################################################
 from __future__ import division
 from ryu import cfg
 from ryu.base import app_manager
@@ -18,7 +16,7 @@ from ryu.topology.switches import Switches
 from ryu.topology.switches import LLDPPacket
 import networkx as nx
 import time
-import constants  
+import constants
 
 
 CONF = cfg.CONF
@@ -26,141 +24,132 @@ CONF = cfg.CONF
 
 class LatencyCalculator(app_manager.RyuApp):
     """
-        App to Calculate Latency of Links
     """
 
     OFP_VERSIONS = [ofproto_v1_3.OFP_VERSION]
 
     def __init__(self, *args, **kwargs):
         super(LatencyCalculator, self).__init__(*args, **kwargs)
-        self.name = 'latency'
+        self.name = 'latencycalculator'
         self.sending_echo_request_interval = 0.05
+        # Get the active object of swicthes and nwtopology module.
+        # So that this module can use their data.
         self.sw_module = lookup_service_brick('switches')
-        self.topology = lookup_service_brick('topologydiscovery') ## use ryu method to get data from switches and topology
-
+        self.nwtopology = lookup_service_brick('topologydiscovery')
         self.datapaths = {}
         self.echo_latency = {}
         self.measure_thread = hub.spawn(self._calculator)
-
+         
     def _calculator(self):
         """
-	    This function will be called whenever ryu object gets instantiated
-            This is the function that triggers other function to calculate latency
-	    Operations:
-	    1. send echo request
-            2. Get time taken by LLDP packets from controller to switch
-	    3. Measure link delay
-	    It calculates link delay periodically, as given in LATENCY_CALCULATION_PERIOD
+	    Main function that triggers other function
+	    1. It first calculates echo latency between switch and controller
+	    2. Then it triggers function to send get latency calculated by LLDP packets
+	    3. It triggers the function of latency calculation by using LLDP packets
         """
         while True:
             self._send_echo_request()
-            self.create_link_delay()
+            self.save_link_latency()
             try:
-                self.topology.shortest_paths = {}
-                self.logger.debug("Refresh the shortest_paths")
+		self.save_link_latency()
+		self.display_latency()
             except:
-                self.topology = lookup_service_brick('topology')
-
-            self.show_delay_statis()
+	        self.nwtopology = lookup_service_brick('topologydiscovery')
             hub.sleep(constants.LATENCY_CALCULATION_PERIOD)
-
-
-    @set_ev_cls(ofp_event.EventOFPStateChange,
-                [MAIN_DISPATCHER, DEAD_DISPATCHER])
-    def _state_change_handler(self, ev):
-	datapath = ev.datapath
-        if ev.state == MAIN_DISPATCHER:
-            if not datapath.id in self.datapaths:
-                self.logger.debug('Register datapath: %016x', datapath.id)
-                self.datapaths[datapath.id] = datapath
-		print "\n values:",self.datapaths.values()
-        elif ev.state == DEAD_DISPATCHER:
-            if datapath.id in self.datapaths:
-                self.logger.debug('Unregister datapath: %016x', datapath.id)
-                del self.datapaths[datapath.id]
-
 
     def _send_echo_request(self):
         """
-            Seng echo request msg to datapath.
+            This function sends echo request message to switches 
+            This echo message is used to calculate echo latency between controller and switch
         """
-	if self.topology is None:
-		self.topology = lookup_service_brick('topologydiscovery')
-	print "\n ******** self.datapaths *********",self.topology
-	for i in self.datapaths:
-		print "\n datapaths:", i
-        for datapath in self.datapaths:
+        for datapath in self.datapaths.values():
             parser = datapath.ofproto_parser
             echo_req = parser.OFPEchoRequest(datapath,
                                              data="%.12f" % time.time())
             datapath.send_msg(echo_req)
-            # Important! Don't send echo request together, Because it will
-            # generate a lot of echo reply almost in the same time.
-            # which will generate a lot of delay of waiting in queue
-            # when processing echo reply in echo_reply_handler.
-
-            hub.sleep(self.sending_echo_request_interval)
+	    # sends echo request message within every 0.05 sec
+            hub.sleep(0.05) 
 
     @set_ev_cls(ofp_event.EventOFPEchoReply, MAIN_DISPATCHER)
-    def echo_reply_handler(self, ev):
+    def get_echo_reply(self, ev):
         """
-            Handle the echo reply msg, and get the latency of link.
+	    Fetch the time at which echo reply is received 
+            This time is used to calculate echo delay between controller and switch
         """
-        now_timestamp = time.time()
+        now_time = time.time()
         try:
-            latency = now_timestamp - eval(ev.msg.data)
-            self.echo_latency[ev.msg.datapath.id] = latency
+            echo_latency = now_time - eval(ev.msg.data)
+            self.echo_latency[ev.msg.datapath.id] = echo_latency
         except:
             return
-
-    def get_delay(self, src, dst):
-        """
-            Get link delay.
-                        Controller
-                        |        |
-        src echo latency|        |dst echo latency
-                        |        |
-                   SwitchA-------SwitchB
-                        
-                    fwd_delay--->
-                        <----reply_delay
-            delay = (forward delay + reply delay - src datapath's echo latency
-        """
-        try:
-            fwd_delay = self.topology.database[src][dst]['lldpdelay']
-            re_delay = self.topology.database[dst][src]['lldpdelay']
-            src_latency = self.echo_latency[src]
-            dst_latency = self.echo_latency[dst]
-            
-            delay = (fwd_delay + re_delay - src_latency - dst_latency)/2
-            return max(delay, 0)
-        except:
-            return float('inf')
 
     def _save_lldp_delay(self, src=0, dst=0, lldpdelay=0):
         try:
-            self.topology.database[src][dst]['lldpdelay'] = lldpdelay
+            self.nwtopology.database[src][dst]['lldpdelay'] = lldpdelay
         except:
-            if self.topology is None:
-                self.topology = lookup_service_brick('topology')
+            if self.nwtopology is None:
+                self.nwtopology = lookup_service_brick('topologydiscovery')
             return
 
-    def create_link_delay(self):
-        """
-            Create link delay data, and save it into database object.
+    def calculate_link_latency(self, src, dst):
+        """ 
+	   This is the function that calculates final latency of all links
+           formula to calculate latency is:
+	   latency = ((delay(A->B) - (echoA/2 + echoB/2)) + (delay(B->A) - (echoB/2 + echoA/2)))/2
         """
         try:
-            for src in self.topology.database:
-                for dst in self.topology.database[src]:
-                    if src == dst:
-                        self.topology.database[src][dst]['delay'] = 0
-                        continue
-                    delay = self.get_delay(src, dst)
-                    self.topology.database[src][dst]['delay'] = delay
+            latency_forward = self.nwtopology.database[src][dst]['lldpdelay']
+            latency_backward = self.nwtopology.database[dst][src]['lldpdelay']
+            src_echo_latency = self.echo_latency[src]
+            dst_echo_latency = self.echo_latency[dst]
+            latency  = (latency_forward + latency_backward - src_echo_latency - dst_echo_latency)/2
+            return max(latency, 0)
         except:
-            if self.topology is None:
-                self.topology = lookup_service_brick('topology')
+            return float('inf')
+
+    def save_link_latency(self):
+        """
+	    Calculate link latency and save it in network topology database
+        """
+        try:
+            for src in self.nwtopology.database:
+                for dst in self.nwtopology.database[src]:
+                    if src == dst:
+                        self.nwtopology.database[src][dst]['latency'] = 0
+                        continue
+                    latency = self.calculate_link_latency(src, dst)
+                    self.nwtopology.database[src][dst]['latency'] = latency
+        except Exception as ex:
+            if self.nwtopology is None:
+                self.nwtopology = lookup_service_brick('topologydiscovery')
             return
+
+    def display_latency(self):
+        if constants.DISPLAY and self.nwtopology is not None and self.nwtopology.database.number_of_nodes()>0:
+	    self.logger.info("\nsrc-dpid    dst-dpid               latency")
+            self.logger.info("-----------------------------------------------")
+            for src in self.nwtopology.database:
+                for dst in self.nwtopology.database[src]:
+                    latency = self.nwtopology.database[src][dst]['latency']
+                    self.logger.info("%s<-->%s : %s" % (src, dst, latency))
+
+    @set_ev_cls(ofp_event.EventOFPStateChange,
+                [MAIN_DISPATCHER, DEAD_DISPATCHER])
+    def _record_switches(self, ev):
+        """     
+        This function records the switch in main_dispatcher
+        if the switch in MAIN_DISPATCHER is not already in database, then add it
+        if the switch goes to DEAD_DISPATCHER then it isno longer active, remove it from database
+        """
+        datapath = ev.datapath
+        if ev.state == MAIN_DISPATCHER:
+            if not datapath.id in self.datapaths:
+                self.logger.debug('Adding OVS: %016x', datapath.id)
+                self.datapaths[datapath.id] = datapath
+        elif ev.state == DEAD_DISPATCHER:
+            if datapath.id in self.datapaths:
+                self.logger.debug('Removing OVS: %016x', datapath.id)
+                del self.datapaths[datapath.id]
 
     @set_ev_cls(ofp_event.EventOFPPacketIn, MAIN_DISPATCHER)
     def packet_in_handler(self, ev):
@@ -173,7 +162,6 @@ class LatencyCalculator(app_manager.RyuApp):
             dpid = msg.datapath.id
             if self.sw_module is None:
                 self.sw_module = lookup_service_brick('switches')
-
             for port in self.sw_module.ports.keys():
                 if src_dpid == port.dpid and src_port_no == port.port_no:
                     delay = self.sw_module.ports[port].delay
@@ -182,11 +170,3 @@ class LatencyCalculator(app_manager.RyuApp):
         except LLDPPacket.LLDPUnknownFormat as e:
             return
 
-    def show_delay_statis(self):
-        if constants.DISPLAY and self.topology is not None:
-            self.logger.info("\nsrc   dst      delay")
-            self.logger.info("---------------------------")
-            for src in self.topology.database:
-                for dst in self.topology.database[src]:
-                    delay = self.topology.database[src][dst]['delay']
-                    self.logger.info("%s<-->%s : %s" % (src, dst, delay))
