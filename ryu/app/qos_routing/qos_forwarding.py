@@ -46,6 +46,7 @@ class QosForwarding(app_manager.RyuApp):
 	     self._calculate_link_cost()
 	     if i ==5:
 	        self.show_link_cost()
+		self.trigger()
 		i=0
              else:
 		i=i+1
@@ -96,4 +97,70 @@ class QosForwarding(app_manager.RyuApp):
                 for dst in self.topology.database[src]:
                     cost = self.topology.database[src][dst]['cost']
                     self.logger.info("%s<-->%s : %s" % (src, dst, cost))
+
+    def trigger(self):
+	for src in self.topology.database:
+                for dst in self.topology.database[src]:
+			self.calculate_shortest_cost_path(self.topology.database, src, dst)
+
+    def calculate_shortest_cost_path(self, topology, src, dst):
+	"""
+	   This function takes the cost of every link and calculates the shortest path between source and destination
+	   whenever a packet comes in, first it will check the ip and the source and destination, it will also check dscp field
+	   then it will call dijkstra algo to find shortest cost path 
+	"""
+	path = nx.dijkstra_path(topology, source= src, target=dst, weight='cost')
+	#print "\n ***** shortest path: src {} --> dst{} {} {}".format(src, dst,path , topology[src][dst]['cost'])     
+
+
+    def add_flow(self):
+	"""
+	add flows in switches
+	"""
+	print "adding flow"
+    
+    def send_packet_out(self):
+	"""
+	send packet out message
+	"""
+	print "send packet out"
+
+    def handle_arp_request(self):
+	"""
+	handle arp request coming to controller
+	"""
+	print "handle arp request"
+
+    @set_ev_cls(ofp_event.EventOFPPacketIn, MAIN_DISPATCHER)
+    def _packet_in_handler(self, ev):
+        '''
+	Handle packet in-packet
+        '''
+        #print "handle packet in handler"
+        msg = ev.msg
+        datapath = msg.datapath
+        ofproto = datapath.ofproto
+        in_port = msg.match['in_port']
+        pkt = packet.Packet(msg.data)
+	#print "\n msg:",msg, dir(msg), in_port
+	arp_packet = pkt.get_protocol(arp.arp)
+	if arp_packet:
+		print "flooding arp request"
+		in_port = msg.match['in_port']
+		out_port = ofproto.OFPP_FLOOD
+		actions = [datapath.ofproto_parser.OFPActionOutput(out_port)]
+		out = datapath.ofproto_parser.OFPPacketOut(datapath=datapath,buffer_id=msg.buffer_id, in_port=in_port,actions=actions)
+		datapath.send_msg(out)
+        ip_packet = pkt.get_protocol(ipv4.ipv4)
+	if ip_packet:
+		print "ip packet destination:",ip_packet.dst
+		print "ip packet source:",ip_packet.src
+		print pkt_ipv4.proto
+		print "\n printing pckt {}, data {}".format(pkt, msg.data)
+
+
+
+
+
+
 
