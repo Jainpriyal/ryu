@@ -109,17 +109,20 @@ class QosForwarding(app_manager.RyuApp):
 	   whenever a packet comes in, first it will check the ip and the source and destination, it will also check dscp field
 	   then it will call dijkstra algo to find shortest cost path 
 	"""
-	path = nx.dijkstra_path(topology, source= src, target=dst, weight='cost')
-	return path
+        if topology is not None:
+	     path = nx.dijkstra_path(topology, source= src, target=dst, weight='cost')
+	     return path
+	else:
+	     return None
 
-   def get_host_location(self, src_ip, dst_ip):
-       """
-	this function will return dpid of switches connected with source and destination host
-	after getting dpid of source and destination switch try calculating shortest path between destination and switch
-       """
-       src_dpid = self.topology.retrieve_dpid_connected_host(src_ip)
-       dst_dpid = self.topology.retrieve_dpid_connected_host(dst_ip)
-       return src_dpid, dst_dpid
+    def get_host_location(self, src_ip, dst_ip):
+        """
+	  this function will return dpid of switches connected with source and destination host
+	  after getting dpid of source and destination switch try calculating shortest path between destination and switch
+        """
+        src_dpid = self.topology.retrieve_dpid_connected_host(src_ip)
+        dst_dpid = self.topology.retrieve_dpid_connected_host(dst_ip)
+        return src_dpid, dst_dpid
 
     def get_switch_port_pair(self, src_dpid, dst_dpid):
 	"""
@@ -214,7 +217,6 @@ class QosForwarding(app_manager.RyuApp):
 	    src_ip = ip_packet.src  # source ip of packet
 	    dst_ip = ip_packet.dst  # destination ip of packet
 	    eth_type = pkt.get_protocols(ethernet.ethernet)[0].ethertype
-	    print pkt_ipv4.proto
             print "\n printing pckt {}, data {}".format(pkt, msg.data)
             src_dpid, dst_dpid = self.get_host_location(src_ip, dst_ip)
             path = self.calculate_shortest_cost_path(self.topology.database, src_dpid, dst_dpid)
