@@ -141,7 +141,7 @@ class QosForwarding(app_manager.RyuApp):
 	"""
 	print "\n inside get_switch_port_par"
         if (src_dpid, dst_dpid) in self.topology.switch_link_table:
-	    return switch_link_table[(src_dpid, dst_dpid)]
+	    return self.topology.switch_link_table[(src_dpid, dst_dpid)]
 	else:
 	    self.logger.info("No link between {}, {}".format(src_dpid, dst_dpid))
 	    return None
@@ -153,13 +153,21 @@ class QosForwarding(app_manager.RyuApp):
 	"""
 	print "adding flow"
         if len(path)>1:
-	    for i in range(0, len(path)):
+	    for i in range(0, len(path)-1):
 		ports = self.get_switch_port_pair(path[i], path[i+1])
-		src_port = port[0]
-		dst_port = port[1]
-                self.build_flow_mod(path[i],src_port, dst_port, flow_info)
-                
-				
+		src_port = ports[0]
+		dst_port = ports[1]
+		datapath = self.datapaths[path[i]]
+                self.build_flow_mod(datapath,src_port, dst_port, flow_info)
+		self.build_flow_mod(datapath, dst_port, src_port, flow_info)                
+		
+		src_port = ports[1]
+                dst_port = ports[0]
+                datapath = self.datapaths[path[i+1]]
+                self.build_flow_mod(datapath,src_port, dst_port, flow_info)
+                self.build_flow_mod(datapath, dst_port, src_port, flow_info)
+	       
+
     def build_flow_mod(self, datapath, src_port, dst_port, flow_info):
 	"""
 	Build flow mod packets to be installed in switch
@@ -190,17 +198,63 @@ class QosForwarding(app_manager.RyuApp):
         datapath.send_msg(mod)
 
 
-    def send_packet_out(self):
-	"""
-	send packet out message
-	"""
-	print "send packet out"
+    def build_packet_out(self, datapath, buffer_id, src_port, dst_port, data):
+        """
+            Build packet out object.
+        """
+        actions = []
+        if dst_port:
+            actions.append(datapath.ofproto_parser.OFPActionOutput(dst_port))
 
-    def handle_arp_request(self):
+        msg_data = None
+        if buffer_id == datapath.ofproto.OFP_NO_BUFFER:
+            if data is None:
+                return None
+            msg_data = data
+
+        out = datapath.ofproto_parser.OFPPacketOut(
+            datapath=datapath, buffer_id=buffer_id,
+            data=msg_data, in_port=src_port, actions=actions)
+        return out
+
+    ####### Need to modify this function
+    def flood(self, msg):
+        """
+            Flood ARP packet to the access port
+            which has no record of host.
+        """
+        datapath = msg.datapath
+        ofproto = datapath.ofproto
+        parser = datapath.ofproto_parser
+
+        for dpid in self.topology.switch_host_ports:
+            for port in self.topology.switch_host_ports[dpid]:
+                if (dpid, port) not in self.topology.switch_host_access_table.keys():
+                    datapath = self.datapaths[dpid]
+                    out = self.build_packet_out(
+                        datapath, ofproto.OFP_NO_BUFFER,
+                        ofproto.OFPP_CONTROLLER, port, msg.data)
+                    datapath.send_msg(out)
+        self.logger.debug("Flooding msg")
+
+    def handle_arp_request(self, msg, srcip, dstip):
 	"""
 	handle arp request coming to controller
 	"""
 	print "handle arp request"
+        datapath = msg.datapath
+        ofproto = datapath.ofproto
+        parser = datapath.ofproto_parser
+        result = self.topology.retrieve_dpid_connected_host(dstip)
+        if result:  
+            dst_datapath, out_port = result[0], result[1]
+            datapath = self.datapaths[dst_datapath]
+            out = self.build_packet_out(datapath, ofproto.OFP_NO_BUFFER,
+                                         ofproto.OFPP_CONTROLLER,
+                                         out_port, msg.data)
+            datapath.send_msg(out)
+        else:
+            self.flood(msg)
 
     @set_ev_cls(ofp_event.EventOFPPacketIn, MAIN_DISPATCHER)
     def _packet_in_handler(self, ev):
@@ -218,12 +272,15 @@ class QosForwarding(app_manager.RyuApp):
 	    # if arp request, then flood the packet for now
             print "flooding arp request"
             in_port = msg.match['in_port']
-            out_port = ofproto.OFPP_FLOOD
-	    actions = [datapath.ofproto_parser.OFPActionOutput(out_port)]
-            out = datapath.ofproto_parser.OFPPacketOut(datapath=datapath,buffer_id=msg.buffer_id, in_port=in_port,actions=actions)
-	    datapath.send_msg(out)
+	    self.handle_arp_request(msg, arp_packet.src_ip, arp_packet.dst_ip)
+        #    out_port = ofproto.OFPP_FLOOD
+	 #   actions = [datapath.ofproto_parser.OFPActionOutput(out_port)]
+         #   out = datapath.ofproto_parser.OFPPacketOut(datapath=datapath,buffer_id=msg.buffer_id, in_port=in_port,actions=actions)
+	 #   datapath.send_msg(out)
         ip_packet = pkt.get_protocol(ipv4.ipv4)
 	if ip_packet:
+	    #import pdb
+	    #pdb.set_trace()
 	    print "\n if ping packet"
 	    src_ip = ip_packet.src  # source ip of packet
 	    dst_ip = ip_packet.dst  # destination ip of packet
