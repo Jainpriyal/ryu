@@ -115,14 +115,25 @@ class QosForwarding(app_manager.RyuApp):
 	else:
 	     return None
 
-    def get_host_location(self, src_ip, dst_ip):
+    def get_host_location(self, datapath_id, in_port, src_ip, dst_ip):
         """
 	  this function will return dpid of switches connected with source and destination host
 	  after getting dpid of source and destination switch try calculating shortest path between destination and switch
         """
-        src_dpid = self.topology.retrieve_dpid_connected_host(src_ip)
-        dst_dpid = self.topology.retrieve_dpid_connected_host(dst_ip)
-        return src_dpid, dst_dpid
+	src_dpid = datapath_id
+	dst_dpid = None
+        source_location = self.topology.retrieve_dpid_connected_host(src_ip)
+	# check if inport of switch is the port that is connected with host        
+	if in_port in self.topology.switch_host_ports[datapath_id]:
+		if(datapath_id, in_port)== source_location:
+			src_dpid = source_location[0]
+		else:
+		        return None
+        destination_location = self.topology.retrieve_dpid_connected_host(dst_ip)
+	if destination_location:
+		dst_dpid = destination_location[0]
+        	print "\n retrieve_dpid_connected_host:", src_dpid, dst_dpid
+	return src_dpid, dst_dpid
 
     def get_switch_port_pair(self, src_dpid, dst_dpid):
 	"""
@@ -135,7 +146,7 @@ class QosForwarding(app_manager.RyuApp):
 	    self.logger.info("No link between {}, {}".format(src_dpid, dst_dpid))
 	    return None
 
-    def install_flow(self, path, flow_info):
+    def install_flows(self, path, flow_info):
 	"""
 	install flows in all switches
 	get the port number and links for all switches 
@@ -196,13 +207,12 @@ class QosForwarding(app_manager.RyuApp):
         '''
 	Handle packet in-packet
         '''
-        #print "handle packet in handler"
+        print "handle packet in handler"
         msg = ev.msg
         datapath = msg.datapath
         ofproto = datapath.ofproto
         in_port = msg.match['in_port']
         pkt = packet.Packet(msg.data)
-	#print "\n msg:",msg, dir(msg), in_port
 	arp_packet = pkt.get_protocol(arp.arp)
 	if arp_packet:
 	    # if arp request, then flood the packet for now
@@ -214,14 +224,20 @@ class QosForwarding(app_manager.RyuApp):
 	    datapath.send_msg(out)
         ip_packet = pkt.get_protocol(ipv4.ipv4)
 	if ip_packet:
+	    print "\n if ping packet"
 	    src_ip = ip_packet.src  # source ip of packet
 	    dst_ip = ip_packet.dst  # destination ip of packet
 	    eth_type = pkt.get_protocols(ethernet.ethernet)[0].ethertype
-            print "\n printing pckt {}, data {}".format(pkt, msg.data)
-            src_dpid, dst_dpid = self.get_host_location(src_ip, dst_ip)
-            path = self.calculate_shortest_cost_path(self.topology.database, src_dpid, dst_dpid)
-            self.logger.info("shortest path: {} <----->{}: {}".format(src_ip, dst_ip, path))
-            flow_info = [eth_type, src_ip, dst_ip, in_port]
-            self.install_flows(path, flow_info ) # install_flows will install flows in corresponding OVS
+            print "src_ip, dst_ip", src_ip, dst_ip 
+            location = self.get_host_location(datapath.id, in_port, src_ip, dst_ip)
+	    # perform other operations if source switch and destination switch location is found 
+	    if location and location[1]:
+		src_dpid = location[0]
+		dst_dpid = location[1]
+	    	print "\n ****** print src_dpid {} dst_dpid {}".format(src_dpid, dst_dpid)
+            	path = self.calculate_shortest_cost_path(self.topology.database, src_dpid, dst_dpid)
+            	self.logger.info("shortest path: {} <----->{}: {}".format(src_ip, dst_ip, path))
+            	flow_info = [eth_type, src_ip, dst_ip, in_port]
+            	self.install_flows(path, flow_info ) # install_flows will install flows in corresponding OVS
 
 

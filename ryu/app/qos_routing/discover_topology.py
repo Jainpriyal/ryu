@@ -113,6 +113,7 @@ class DiscoverTopology(app_manager.RyuApp):
         """
         for key in self.switch_host_access_table.keys():
             if self.switch_host_access_table[key][0] == host_ip:
+	        self.logger.info("location of %s is found %s"%(host_ip,key))
                 return key
         self.logger.info("%s location is not found." % host_ip)
         return None
@@ -270,7 +271,8 @@ class DiscoverTopology(app_manager.RyuApp):
                         print '%10s' % "No-link",
                 print ""
             self.pre_switch_link_table = copy.deepcopy(self.switch_link_table)
-
+        print "\n *****pre_switch_host_access_table", self.pre_switch_host_access_table
+	print "\n *****self.switch_host_access_table", self.switch_host_access_table
         if self.pre_switch_host_access_table != self.switch_host_access_table and constants.SHOWTOPOLOGY:
             print "----------------Access Host-------------------"
             print '%10s' % ("switch"), '%12s' % "Host"
