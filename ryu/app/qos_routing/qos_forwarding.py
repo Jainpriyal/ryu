@@ -110,7 +110,6 @@ class QosForwarding(app_manager.RyuApp):
 	   then it will call dijkstra algo to find shortest cost path 
 	"""
 	path = nx.dijkstra_path(topology, source= src, target=dst, weight='cost')
-	#print "\n ***** shortest path: src {} --> dst{} {} {}".format(src, dst,path , topology[src][dst]['cost'])     
 	return path
 
    def get_host_location(self, src_ip, dst_ip):
@@ -120,15 +119,63 @@ class QosForwarding(app_manager.RyuApp):
        """
        src_dpid = self.topology.retrieve_dpid_connected_host(src_ip)
        dst_dpid = self.topology.retrieve_dpid_connected_host(dst_ip)
-       path = self.calculate_shortest_cost_path(self.topology.database, src_dpid, dst_dpid)
-       self.logger.info("shortest path: {} <----->{}: {}".format(src_ip, dst_ip, path)) 
+       return src_dpid, dst_dpid
 
-    def add_flow(self):
+    def get_switch_port_pair(self, src_dpid, dst_dpid):
 	"""
-	add flows in switches
+	get port number of src_dpid and dst_pid from switch adjacency matrix
+	"""
+	print "\n inside get_switch_port_par"
+        if (src_dpid, dst_dpid) in self.topology.switch_link_table:
+	    return switch_link_table[(src_dpid, dst_dpid)]
+	else:
+	    self.logger.info("No link between {}, {}".format(src_dpid, dst_dpid))
+	    return None
+
+    def install_flow(self, path, flow_info):
+	"""
+	install flows in all switches
+	get the port number and links for all switches 
 	"""
 	print "adding flow"
-    
+        if len(path)>1:
+	    for i in range(0, len(path)):
+		ports = self.get_switch_port_pair(path[i], path[i+1])
+		src_port = port[0]
+		dst_port = port[1]
+                self.build_flow_mod(path[i],src_port, dst_port, flow_info)
+                
+				
+    def build_flow_mod(self, datapath, src_port, dst_port, flow_info):
+	"""
+	Build flow mod packets to be installed in switch
+	"""
+        parser = datapath.ofproto_parser
+        actions = []
+        actions.append(parser.OFPActionOutput(dst_port)) ## add action to send to destination port
+
+        match = parser.OFPMatch(
+            in_port=src_port, eth_type=flow_info[0],
+            ipv4_src=flow_info[1], ipv4_dst=flow_info[2])
+
+        self.send_flow_mod(datapath, 1, match, actions,
+                      idle_timeout=15, hard_timeout=60)
+
+    def send_flow_mod(self, datapath, priority, match, actions, idle_timeout=0, hard_timeout=0):
+        """
+            Send a flow entry to datapath.
+        """
+        ofproto = datapath.ofproto
+        parser = datapath.ofproto_parser
+        inst = [parser.OFPInstructionActions(ofproto.OFPIT_APPLY_ACTIONS,
+                                             actions)]
+        mod = parser.OFPFlowMod(datapath=datapath, priority=priority,
+                                idle_timeout=idle_timeout,
+                                hard_timeout=hard_timeout,
+                                match=match, instructions=inst)
+        datapath.send_msg(mod)
+
+
     def send_packet_out(self):
 	"""
 	send packet out message
@@ -155,6 +202,7 @@ class QosForwarding(app_manager.RyuApp):
 	#print "\n msg:",msg, dir(msg), in_port
 	arp_packet = pkt.get_protocol(arp.arp)
 	if arp_packet:
+	    # if arp request, then flood the packet for now
             print "flooding arp request"
             in_port = msg.match['in_port']
             out_port = ofproto.OFPP_FLOOD
@@ -163,13 +211,15 @@ class QosForwarding(app_manager.RyuApp):
 	    datapath.send_msg(out)
         ip_packet = pkt.get_protocol(ipv4.ipv4)
 	if ip_packet:
-	    print "ip packet destination:",ip_packet.dst
-	    print "ip packet source:",ip_packet.src
+	    src_ip = ip_packet.src  # source ip of packet
+	    dst_ip = ip_packet.dst  # destination ip of packet
+	    eth_type = pkt.get_protocols(ethernet.ethernet)[0].ethertype
 	    print pkt_ipv4.proto
             print "\n printing pckt {}, data {}".format(pkt, msg.data)
-            self.get_host_location(ip_packet.src, ip_packet.dst)
-
-
-
+            src_dpid, dst_dpid = self.get_host_location(src_ip, dst_ip)
+            path = self.calculate_shortest_cost_path(self.topology.database, src_dpid, dst_dpid)
+            self.logger.info("shortest path: {} <----->{}: {}".format(src_ip, dst_ip, path))
+            flow_info = [eth_type, src_ip, dst_ip, in_port]
+            self.install_flows(path, flow_info ) # install_flows will install flows in corresponding OVS
 
 
