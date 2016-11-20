@@ -111,7 +111,17 @@ class QosForwarding(app_manager.RyuApp):
 	"""
 	path = nx.dijkstra_path(topology, source= src, target=dst, weight='cost')
 	#print "\n ***** shortest path: src {} --> dst{} {} {}".format(src, dst,path , topology[src][dst]['cost'])     
+	return path
 
+   def get_host_location(self, src_ip, dst_ip):
+       """
+	this function will return dpid of switches connected with source and destination host
+	after getting dpid of source and destination switch try calculating shortest path between destination and switch
+       """
+       src_dpid = self.topology.retrieve_dpid_connected_host(src_ip)
+       dst_dpid = self.topology.retrieve_dpid_connected_host(dst_ip)
+       path = self.calculate_shortest_cost_path(self.topology.database, src_dpid, dst_dpid)
+       self.logger.info("shortest path: {} <----->{}: {}".format(src_ip, dst_ip, path)) 
 
     def add_flow(self):
 	"""
@@ -145,20 +155,19 @@ class QosForwarding(app_manager.RyuApp):
 	#print "\n msg:",msg, dir(msg), in_port
 	arp_packet = pkt.get_protocol(arp.arp)
 	if arp_packet:
-		print "flooding arp request"
-		in_port = msg.match['in_port']
-		out_port = ofproto.OFPP_FLOOD
-		actions = [datapath.ofproto_parser.OFPActionOutput(out_port)]
-		out = datapath.ofproto_parser.OFPPacketOut(datapath=datapath,buffer_id=msg.buffer_id, in_port=in_port,actions=actions)
-		datapath.send_msg(out)
+            print "flooding arp request"
+            in_port = msg.match['in_port']
+            out_port = ofproto.OFPP_FLOOD
+	    actions = [datapath.ofproto_parser.OFPActionOutput(out_port)]
+            out = datapath.ofproto_parser.OFPPacketOut(datapath=datapath,buffer_id=msg.buffer_id, in_port=in_port,actions=actions)
+	    datapath.send_msg(out)
         ip_packet = pkt.get_protocol(ipv4.ipv4)
 	if ip_packet:
-		print "ip packet destination:",ip_packet.dst
-		print "ip packet source:",ip_packet.src
-		print pkt_ipv4.proto
-		print "\n printing pckt {}, data {}".format(pkt, msg.data)
-
-
+	    print "ip packet destination:",ip_packet.dst
+	    print "ip packet source:",ip_packet.src
+	    print pkt_ipv4.proto
+            print "\n printing pckt {}, data {}".format(pkt, msg.data)
+            self.get_host_location(ip_packet.src, ip_packet.dst)
 
 
 
