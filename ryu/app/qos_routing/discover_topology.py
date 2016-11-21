@@ -229,6 +229,7 @@ class DiscoverTopology(app_manager.RyuApp):
         ip_pkt = pkt.get_protocol(ipv4.ipv4)
 
         if arp_pkt:
+	    print "\n inside arp packet"
             arp_src_ip = arp_pkt.src_ip
             arp_dst_ip = arp_pkt.dst_ip
             mac = arp_pkt.src_mac

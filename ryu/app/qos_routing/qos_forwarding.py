@@ -137,7 +137,7 @@ class QosForwarding(app_manager.RyuApp):
 
     def get_switch_port_pair(self, src_dpid, dst_dpid):
 	"""
-	get port number of src_dpid and dst_pid from switch adjacency matrix
+	get port number of dpids from switch adjacency matrix
 	"""
 	print "\n inside get_switch_port_par"
         if (src_dpid, dst_dpid) in self.topology.switch_link_table:
@@ -145,6 +145,19 @@ class QosForwarding(app_manager.RyuApp):
 	else:
 	    self.logger.info("No link between {}, {}".format(src_dpid, dst_dpid))
 	    return None
+
+    def get_destination_port(self, destination_ip):
+        """
+	    get port of the switch from which destination host is attached
+        """
+        if self.topology.switch_host_access_table:
+            if isinstance(self.topology.switch_host_access_table.values()[0], tuple):
+                for values in self.topology.switch_host_access_table.keys():
+                    if destination_ip == self.topology.switch_host_access_table[values][0]:
+                        destination_port = values[1]
+                        return destination_port
+        return None
+
 
     def install_flows(self, path, flow_info):
 	"""
@@ -155,6 +168,8 @@ class QosForwarding(app_manager.RyuApp):
         if len(path)>1:
 	    for i in range(0, len(path)-1):
 		ports = self.get_switch_port_pair(path[i], path[i+1])
+		print "\n path[i], path[i+1]:",path[i],path[i+1]
+		print "\n ports:",ports
 		src_port = ports[0]
 		dst_port = ports[1]
 		datapath = self.datapaths[path[i]]
@@ -166,7 +181,14 @@ class QosForwarding(app_manager.RyuApp):
                 datapath = self.datapaths[path[i+1]]
                 self.build_flow_mod(datapath,src_port, dst_port, flow_info)
                 self.build_flow_mod(datapath, dst_port, src_port, flow_info)
-	       
+                dst_port = self.get_destination_port(flow_info[2])
+		src_port = ports[0]
+		if dst_port:
+		        print "\n installing datapath for:",path[-1]
+			print "\n\n0000000source port:", src_port, dst_port
+			# installing flow for final datapath
+			final_dp = self.datapaths[path[-1]]
+	        	self.build_flow_mod(final_dp,src_port, dst_port, flow_info)
 
     def build_flow_mod(self, datapath, src_port, dst_port, flow_info):
 	"""
