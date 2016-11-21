@@ -229,7 +229,6 @@ class DiscoverTopology(app_manager.RyuApp):
         ip_pkt = pkt.get_protocol(ipv4.ipv4)
 
         if arp_pkt:
-	    print "\n inside arp packet"
             arp_src_ip = arp_pkt.src_ip
             arp_dst_ip = arp_pkt.dst_ip
             mac = arp_pkt.src_mac
@@ -272,8 +271,6 @@ class DiscoverTopology(app_manager.RyuApp):
                         print '%10s' % "No-link",
                 print ""
             self.pre_switch_link_table = copy.deepcopy(self.switch_link_table)
-        print "\n *****pre_switch_host_access_table", self.pre_switch_host_access_table
-	print "\n *****self.switch_host_access_table", self.switch_host_access_table
         if self.pre_switch_host_access_table != self.switch_host_access_table and constants.SHOWTOPOLOGY:
             print "----------------Access Host-------------------"
             print '%10s' % ("switch"), '%12s' % "Host"
