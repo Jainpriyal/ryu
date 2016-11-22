@@ -116,6 +116,20 @@ class QosForwarding(app_manager.RyuApp):
 	else:
 	     return None
 
+    def calculate_shortest_hop_path(self, topology, src, dst):
+        """
+           This function takes the cost of every link and calculates the shortest path between source and destination
+           whenever a packet comes in, first it will check the ip and the source and destination, it will also check dscp field
+           then it will call dijkstra algo to find shortest cost path 
+        """
+        if topology is not None:
+	     #total_cost = nx.dijkstra_path_length(topology, source= src, target=dst, weight='cost') 
+             path = nx.shortest_path(topology, source= src, target=dst)
+             total_cost = 0
+	     return path, total_cost
+        else:
+             return None
+
     def get_host_location(self, datapath_id, in_port, src_ip, dst_ip):
         """
 	  this function will return dpid of switches connected with source and destination host
@@ -172,7 +186,7 @@ class QosForwarding(app_manager.RyuApp):
         if len(path) > 2:
             for i in range(1, len(path)-1):
                 ports_in = self.get_switch_port_pair(path[i-1], path[i]) # port from which data is coming
-                ports_out = self.get_port_pair_from_link(path[i], path[i+1])
+                ports_out = self.get_switch_port_pair(path[i], path[i+1])
                 if ports_in and ports_out:
                     src_port, dst_port = ports_in[1], ports_out[0] ## get in_port and out_port
                     src_dpid = self.datapaths[path[i]]
@@ -261,7 +275,7 @@ class QosForwarding(app_manager.RyuApp):
             ipv4_src=flow_info[1], ipv4_dst=flow_info[2])
 
         self.send_flow_mod(datapath, 1, match, actions,
-                      idle_timeout=15, hard_timeout=60)
+                      idle_timeout=40, hard_timeout=100)
 
     def send_flow_mod(self, datapath, priority, match, actions, idle_timeout=0, hard_timeout=0):
         """
@@ -366,8 +380,8 @@ class QosForwarding(app_manager.RyuApp):
 	 #   datapath.send_msg(out)
         ip_packet = pkt.get_protocol(ipv4.ipv4)
 	if ip_packet:
-	    print "\n ***** priyal dscp is :", ip_packet.tos
 	    self.logger.info("\nHandling ip packets...")
+	    dscp_val = ip_packet.tos
 	    src_ip = ip_packet.src  # source ip of packet
 	    dst_ip = ip_packet.dst  # destination ip of packet
 	    eth_type = pkt.get_protocols(ethernet.ethernet)[0].ethertype
@@ -379,11 +393,13 @@ class QosForwarding(app_manager.RyuApp):
 		src_dpid = location[0]
 		dst_dpid = location[1]
 		if dscp_val:
+			self.logger.info("\nPackets are marked with DSCP, tos val is {}".format(dscp_val))
             		path, final_cost = self.calculate_shortest_cost_path(self.topology.database, src_dpid, dst_dpid)
             		self.logger.info("\n\n Shortest Cost Path: Cost: {} <----->{}: {} {}".format(src_ip, dst_ip, path, final_cost))
 		else:
-			path, final_cost = self.calculate_shortest_cost_path(self.topology.database, src_dpid, dst_dpid)
-			self.logger.info("\n\n Shortest Cost Path: Cost {} <----->{}: {} {}".format(src_ip, dst_ip, path, final_cost))
+			self.logger.info("\nPackets are not marked with DSCP")
+			path, final_cost = self.calculate_shortest_hop_path(self.topology.database, src_dpid, dst_dpid)
+			self.logger.info("\n\n Shortest Hop  Path: Cost {} <----->{}: {} {}".format(src_ip, dst_ip, path, final_cost))
             	flow_info = [eth_type, src_ip, dst_ip, in_port]
             	self.install_flows(path, flow_info, msg ) # install_flows will install flows in corresponding OVS
 
