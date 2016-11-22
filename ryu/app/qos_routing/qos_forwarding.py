@@ -42,11 +42,11 @@ class QosForwarding(app_manager.RyuApp):
          
     def _metric_calculator(self):
 	i=0
+	print "inside metric calculator"
 	while True:
 	     self._calculate_link_cost()
 	     if i ==5:
 	        self.show_link_cost()
-		self.trigger()
 		i=0
              else:
 		i=i+1
@@ -111,7 +111,8 @@ class QosForwarding(app_manager.RyuApp):
 	"""
         if topology is not None:
 	     path = nx.dijkstra_path(topology, source= src, target=dst, weight='cost')
-	     return path
+	     total_cost = nx.dijkstra_path_length(topology, source= src, target=dst, weight='cost')
+	     return path, total_cost
 	else:
 	     return None
 
@@ -365,6 +366,7 @@ class QosForwarding(app_manager.RyuApp):
 	 #   datapath.send_msg(out)
         ip_packet = pkt.get_protocol(ipv4.ipv4)
 	if ip_packet:
+	    print "\n ***** priyal dscp is :", ip_packet.tos
 	    self.logger.info("\nHandling ip packets...")
 	    src_ip = ip_packet.src  # source ip of packet
 	    dst_ip = ip_packet.dst  # destination ip of packet
@@ -373,10 +375,15 @@ class QosForwarding(app_manager.RyuApp):
             location = self.get_host_location(datapath.id, in_port, src_ip, dst_ip)
 	    # perform other operations if source switch and destination switch location is found 
 	    if location and location[1]:
+		dscp_val = ip_packet.tos
 		src_dpid = location[0]
 		dst_dpid = location[1]
-            	path = self.calculate_shortest_cost_path(self.topology.database, src_dpid, dst_dpid)
-            	self.logger.info("\n\n Shortest Cosr Path: {} <----->{}: {}".format(src_ip, dst_ip, path))
+		if dscp_val:
+            		path, final_cost = self.calculate_shortest_cost_path(self.topology.database, src_dpid, dst_dpid)
+            		self.logger.info("\n\n Shortest Cost Path: Cost: {} <----->{}: {} {}".format(src_ip, dst_ip, path, final_cost))
+		else:
+			path, final_cost = self.calculate_shortest_cost_path(self.topology.database, src_dpid, dst_dpid)
+			self.logger.info("\n\n Shortest Cost Path: Cost {} <----->{}: {} {}".format(src_ip, dst_ip, path, final_cost))
             	flow_info = [eth_type, src_ip, dst_ip, in_port]
             	self.install_flows(path, flow_info, msg ) # install_flows will install flows in corresponding OVS
 
