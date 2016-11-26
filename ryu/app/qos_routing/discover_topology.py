@@ -30,9 +30,6 @@ from ryu.topology.api import get_switch, get_link
 import constants 
 
 
-CONF = cfg.CONF
-
-
 class DiscoverTopology(app_manager.RyuApp):
     """
         Class to discover topology
@@ -71,7 +68,7 @@ class DiscoverTopology(app_manager.RyuApp):
             if i == 5:
                 self.get_topology(None)
                 i = 0
-            hub.sleep(constants.TOPOLOGY_DISCOVERY_TIME)
+            hub.sleep(constants.TOPOLOGY_DISCOVERY_PERIOD)
             i = i + 1
 
     @set_ev_cls(ofp_event.EventOFPSwitchFeatures, CONFIG_DISPATCHER)

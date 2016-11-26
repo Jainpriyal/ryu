@@ -38,6 +38,7 @@ class QosForwarding(app_manager.RyuApp):
         self.latency_calculator = kwargs["latency_calculator"]
         self.datapaths = {}
         self.latency_weight = 10 #weight assigned to latency
+	self.weighted_cost = 100
         self.measure_thread = hub.spawn(self._metric_calculator)        
          
     def _metric_calculator(self):
@@ -50,7 +51,7 @@ class QosForwarding(app_manager.RyuApp):
 		i=0
              else:
 		i=i+1
-             hub.sleep(1)
+             hub.sleep(constants.COST_CALCULATION_PERIOD)
 	
     @set_ev_cls(ofp_event.EventOFPStateChange,
                 [MAIN_DISPATCHER, DEAD_DISPATCHER])
@@ -95,7 +96,7 @@ class QosForwarding(app_manager.RyuApp):
             self.logger.info("-----------------------------------------------")
             for src in self.topology.database:
                 for dst in self.topology.database[src]:
-                    cost = self.topology.database[src][dst]['cost']
+                    cost = self.topology.database[src][dst].get('cost')
                     self.logger.info("%s<-->%s : %s" % (src, dst, cost))
 
     def trigger(self):
@@ -110,8 +111,8 @@ class QosForwarding(app_manager.RyuApp):
 	   then it will call dijkstra algo to find shortest cost path 
 	"""
         if topology is not None:
-	     self.topology.database[dst][src]['cost']=100*self.topology.database[dst][src]['cost']
-	     self.topology.database[src][dst]['cost']=100*self.topology.database[src][dst]['cost']
+	     self.topology.database[dst][src]['cost']=self.weighted_cost*self.topology.database[dst][src]['cost']
+	     self.topology.database[src][dst]['cost']=self.weighted_cost*self.topology.database[src][dst]['cost']
 	     self.show_link_cost()
 	     path = nx.dijkstra_path(topology, source= src, target=dst, weight='cost')
 	     total_cost = nx.dijkstra_path_length(topology, source= src, target=dst, weight='cost')
@@ -126,8 +127,11 @@ class QosForwarding(app_manager.RyuApp):
            then it will call dijkstra algo to find shortest cost path 
         """
         if topology is not None:
-             path = nx.shortest_path(topology, source= src, target=dst)
-	     total_cost = nx.shortest_path_length(topology, source= src, target=dst, weight='cost')
+	     self.topology.database[dst][src]['cost']=self.weighted_cost*self.topology.database[dst][src]['cost']
+             self.topology.database[src][dst]['cost']=self.weighted_cost*self.topology.database[src][dst]['cost']
+             self.show_link_cost() 
+	     path = nx.shortest_path(topology, source= src, target=dst)
+	     total_cost = nx.shortest_path_length(topology, source= src, target=dst)
 	     return path, total_cost
         else:
              return None
@@ -149,7 +153,7 @@ class QosForwarding(app_manager.RyuApp):
         destination_location = self.topology.retrieve_dpid_connected_host(dst_ip)
 	if destination_location:
 		dst_dpid = destination_location[0]
-        	self.logger.info("\n Source dpid: {} Destination dpid: {}:".format(src_dpid, dst_dpid))
+        	self.logger.info("\nSource dpid: {} Destination dpid: {}:".format(src_dpid, dst_dpid))
 	return src_dpid, dst_dpid
 
     def get_switch_port_pair(self, src_dpid, dst_dpid):
@@ -195,7 +199,7 @@ class QosForwarding(app_manager.RyuApp):
 		    rev_info= (flow_info[0], flow_info[2], flow_info[1])
                     self.build_flow_mod(src_dpid, src_port, dst_port, flow_info, queue_set)
                     self.build_flow_mod(src_dpid, dst_port, src_port, rev_info, queue_set)
-                    self.logger.debug("installing flows in internal switches ")
+                    self.logger.info("Installing flows in internal switches ")
 
 	if len(path)>1:
 	    # flow entry for source host to first switch in path
@@ -378,7 +382,7 @@ class QosForwarding(app_manager.RyuApp):
             self.logger.info("\nHandling arp request...")
             in_port = msg.match['in_port']
 	    self.handle_arp_request(msg, arp_packet.src_ip, arp_packet.dst_ip)
-        #    out_port = ofproto.OFPP_FLOOD
+         #    out_port = ofproto.OFPP_FLOOD
 	 #   actions = [datapath.ofproto_parser.OFPActionOutput(out_port)]
          #   out = datapath.ofproto_parser.OFPPacketOut(datapath=datapath,buffer_id=msg.buffer_id, in_port=in_port,actions=actions)
 	 #   datapath.send_msg(out)
@@ -400,12 +404,12 @@ class QosForwarding(app_manager.RyuApp):
 			queue_set = True
 			self.logger.info("\nPackets are marked with DSCP, tos val is {}".format(dscp_val))
             		path, final_cost = self.calculate_shortest_cost_path(self.topology.database, src_dpid, dst_dpid)
-            		self.logger.info("\n\n Shortest Cost Path: Cost: {} <----->{}: {} {}".format(src_ip, dst_ip, path, final_cost))
+            		self.logger.info("\n\nShortest Cost Path: Cost: {} <----->{}: {} {}".format(src_ip, dst_ip, path, final_cost))
 		else:
 			queue_set = False
 			self.logger.info("\nPackets are not marked with DSCP")
 			path, final_cost = self.calculate_shortest_hop_path(self.topology.database, src_dpid, dst_dpid)
-			self.logger.info("\n\n Shortest Hop  Path: Cost {} <----->{}: {} {}".format(src_ip, dst_ip, path, final_cost))
+			self.logger.info("\n\nShortest Hop  Path: Cost {} <----->{}: {} {}".format(src_ip, dst_ip, path, final_cost))
             	flow_info = [eth_type, src_ip, dst_ip, in_port]
             	self.install_flows(path, flow_info, msg, queue_set) # install_flows will install flows in corresponding OVS
 
