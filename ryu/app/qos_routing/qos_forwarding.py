@@ -110,6 +110,9 @@ class QosForwarding(app_manager.RyuApp):
 	   then it will call dijkstra algo to find shortest cost path 
 	"""
         if topology is not None:
+	     self.topology.database[dst][src]['cost']=100*self.topology.database[dst][src]['cost']
+	     self.topology.database[src][dst]['cost']=100*self.topology.database[src][dst]['cost']
+	     self.show_link_cost()
 	     path = nx.dijkstra_path(topology, source= src, target=dst, weight='cost')
 	     total_cost = nx.dijkstra_path_length(topology, source= src, target=dst, weight='cost')
 	     return path, total_cost
@@ -191,7 +194,7 @@ class QosForwarding(app_manager.RyuApp):
                     src_dpid = self.datapaths[path[i]]
 		    rev_info= (flow_info[0], flow_info[2], flow_info[1])
                     self.build_flow_mod(src_dpid, src_port, dst_port, flow_info, queue_set)
-                    self.build_flow_mod(src_dpid, dst_port, src_port, rev_info), queue_set
+                    self.build_flow_mod(src_dpid, dst_port, src_port, rev_info, queue_set)
                     self.logger.debug("installing flows in internal switches ")
 
 	if len(path)>1:
