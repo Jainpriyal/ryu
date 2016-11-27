@@ -233,12 +233,31 @@ class DiscoverTopology(app_manager.RyuApp):
             # Record the access info
             self.create_switch_host_access_table(datapath.id, in_port, arp_src_ip, mac)
 
+    @set_ev_cls(ofp_event.EventOFPPortStatus, MAIN_DISPATCHER)
+    def _port_status_handler(self, ev):
+        """
+         This function will display status of port   
+        """
+        msg = ev.msg
+        reason = msg.reason
+        port_no = msg.desc.port_no
+        dpid = msg.datapath.id
+        ofproto = msg.datapath.ofproto
+        if reason == ofproto.OFPPR_ADD:
+	     self.logger.info("\nPort {} added in switch {}".format(port_no, dpid))
+	elif reason == ofproto.OFPPR_DELETE:
+             self.logger.info("\nPort {} delete in switch {}".format(port_no, dpid))
+	elif reason == ofproto.OFPPR_MODIFY:
+	     self.logger.info("\nPort {} modified in switch {}".format(port_no, dpid))
+	else:
+	     self.logger.info("\nStatus of Port {} in switch {} is unknown".format(port_no, dpid))
+
+
     def display_topology(self):
         """
             it will display topology when ever there is any change
-           
 	"""
-
+	
         switch_num = len(self.database.nodes())
         if set(self.pre_database) != set(self.database) and constants.SHOWTOPOLOGY:
             print "--------------------- Switch Adjacency Matrix ---------------------"
@@ -252,7 +271,6 @@ class DiscoverTopology(app_manager.RyuApp):
                     print '%10.0f' % j['weight'],
                 print ""
             self.pre_database = copy.deepcopy(self.database)
-
         if self.pre_switch_link_table != self.switch_link_table and constants.SHOWTOPOLOGY:
             print "--------------------- Switch Link Matrix ---------------------"
             print '%10s' % ("switch"),
