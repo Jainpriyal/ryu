@@ -127,11 +127,14 @@ class QosForwarding(app_manager.RyuApp):
            then it will call dijkstra algo to find shortest cost path 
         """
         if topology is not None:
+	     total_cost = 0
 	     self.topology.database[dst][src]['cost']=self.weighted_cost*self.topology.database[dst][src]['cost']
              self.topology.database[src][dst]['cost']=self.weighted_cost*self.topology.database[src][dst]['cost']
              self.show_link_cost() 
 	     path = nx.shortest_path(topology, source= src, target=dst)
-	     total_cost = nx.shortest_path_length(topology, source= src, target=dst)
+	     if len(path)>1:
+	     	for i in range(len(path)-1):
+			total_cost = total_cost + self.topology.database[path[i]][path[i+1]]['cost']
 	     return path, total_cost
         else:
              return None
