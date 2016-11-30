@@ -277,9 +277,9 @@ class QosForwarding(app_manager.RyuApp):
 	"""
         parser = datapath.ofproto_parser
         actions = []
-        actions.append(parser.OFPActionOutput(dst_port)) ## add action to send to destination port
 	if queue_set:
             actions.append(parser.OFPActionSetQueue(1))
+	actions.append(parser.OFPActionOutput(dst_port)) ## add action to send to destination port
         match = parser.OFPMatch(
             in_port=src_port, eth_type=flow_info[0],
             ipv4_src=flow_info[1], ipv4_dst=flow_info[2])
@@ -307,10 +307,10 @@ class QosForwarding(app_manager.RyuApp):
             Build packet out object.
         """
         actions = []
-        if dst_port:
-            actions.append(datapath.ofproto_parser.OFPActionOutput(dst_port))
         if queue_set:
-	    actions.append(datapath.ofproto_parser.OFPActionSetQueue(1))	
+	    actions.append(datapath.ofproto_parser.OFPActionSetQueue(1))
+	if dst_port:
+	    actions.append(datapath.ofproto_parser.OFPActionOutput(dst_port)) ## add action to send to destination port	
         msg_data = None
         if buffer_id == datapath.ofproto.OFP_NO_BUFFER:
             if data is None:
