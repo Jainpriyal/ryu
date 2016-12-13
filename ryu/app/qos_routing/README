@@ -1,1 +1,13 @@
-QOS based Multimedia routing using openflow 
+QOS based Multimedia routing using openflow
+==============================================
+
+The project package contains the following things:
+1. Controller module: qos_routing:This folder contains following python modules:
+1.a. discover_topology.py : to discover network topology
+1.b. latency_detector.py : to measure link latency
+1.c. qos_forwarding.py : main module that triggers discover_topology and latency_detector
+     and installs the flows in OVS based on disc marking
+     
+
+To enable qos_routing in controller please use the following command:
+ryu-manager qos_routing —observe-links
